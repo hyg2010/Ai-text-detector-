@@ -4,7 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>GPTZero-Style Text Scanner</title>
+  <link rel="stylesheet" href="style.css">
   <style>
+    /* safe defaults in case style.css is minimal */
     :root{--bg:#0b0c10;--panel:#111318;--muted:#6b7280;--text:#e5e7eb;--accent:#60a5fa;--good:#22c55e;--warn:#f59e0b;--bad:#ef4444}
     *{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#0b0c10,#0e1117);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial}
     .wrap{max-width:1100px;margin:40px auto;padding:20px}
@@ -54,7 +56,7 @@
             </div>
           </div>
           <div class="list" style="margin-top:14px">
-            <div class="small muted" style="margin-bottom:8px">Advanced sentence scanning – top lines increasing AI probability</div>
+            <div class="small muted" style="margin-bottom:8px">Advanced sentence scanning</div>
             <ol id="sentences" class="small"></ol>
           </div>
           <div class="list" style="margin-top:14px">
@@ -68,143 +70,7 @@
     </div>
   </div>
 
-<script>
-// ---------- Utils ----------
-const splitSentences = t => (t.match(/[^.!?]+[.!?]/g) || t.split(/\n+/)).map(s=>s.trim()).filter(Boolean);
-const tokens = t => (t.toLowerCase().match(/[a-zA-Z']+/g) || []);
-const uniq = a => Array.from(new Set(a));
-const ngrams = (tk,n)=>{const o=[]; for(let i=0;i<=tk.length-n;i++) o.push(tk.slice(i,i+n).join(' ')); return o;}
-const clamp01 = x => Math.max(0,Math.min(1,x));
-const scale = (x,lo,hi) => clamp01((x-lo)/(hi-lo));
-
-// ---------- Features ----------
-function features(text){
-  const sents = splitSentences(text);
-  const words = tokens(text);
-  const sentLens = sents.map(s=>tokens(s).length).filter(n=>n>0);
-  const avg = sentLens.length? sentLens.reduce((a,b)=>a+b,0)/sentLens.length : 0;
-  const std = sentLens.length>1? Math.sqrt(sentLens.map(x=> (x-avg)**2).reduce((a,b)=>a+b,0)/sentLens.length):0;
-  const burstiness = avg>0? std/avg : 0;
-  const ttr = words.length? uniq(words).length/words.length : 0;
-
-  const repScores = [2,3,4].map(n=>{
-    const ng=ngrams(words,n); if(!ng.length) return 0;
-    const m=new Map(); ng.forEach(x=>m.set(x,(m.get(x)||0)+1));
-    const repeats=[...m.values()].filter(v=>v>1).reduce((a,b)=>a+b,0);
-    return repeats/ng.length;
-  });
-  const repetition = repScores.reduce((a,b)=>a+b,0)/ (repScores.length||1);
-
-  const puncts = (text.match(/[^\\w\\s]/g)||[]);
-  const punctDiv = puncts.length? new Set(puncts).size/puncts.length : 0;
-
-  return {sents, sentLens, words, avg, std, burstiness, ttr, repetition, punctDiv};
-}
-
-// ---------- Scoring ----------
-function score(text){
-  const F = features(text);
-
-  // Guardrails for tiny input
-  if (F.words.length < 80 || F.sents.length < 3) {
-    return {tooShort:true};
-  }
-
-  const {burstiness,ttr,repetition,punctDiv,avg} = F;
-
-  // AI-ish signals
-  const ai_burst = 1 - scale(burstiness,0.25,0.8);
-  const ai_ttr   = 1 - scale(ttr,0.35,0.65);
-  const ai_rep   = scale(repetition,0.02,0.15);
-  const ai_pdiv  = 1 - scale(punctDiv,0.2,0.75);
-  let ai_avg     = 1 - (2 * ((avg-18)/15)**2); ai_avg = clamp01(ai_avg);
-
-  const AIstrength = 0.30*ai_burst + 0.24*ai_ttr + 0.20*ai_rep + 0.14*ai_pdiv + 0.12*ai_avg;
-  const Humanstrength = 1 - AIstrength*0.85 + scale(burstiness,0.25,0.8)*0.3 + scale(ttr,0.35,0.65)*0.2;
-
-  let AIpct = Math.round(100*(AIstrength/(AIstrength+Humanstrength)));
-  let Humanpct = Math.round(100*(Humanstrength/(AIstrength+Humanstrength)));
-  let Mixpct = Math.max(0,100-(AIpct+Humanpct));
-
-  let label='Unclear', cls='b-unclear';
-  if (AIpct>=60){ label='Likely AI'; cls='b-ai'; }
-  else if (AIpct<40){ label='Likely Human'; cls='b-human'; }
-
-  const flags = flagSentences(F);
-  const explain = explanations(F);
-
-  return {AIpct,Humanpct,Mixpct,label,cls,flags,explain,tooShort:false};
-}
-
-// ---------- Flags & Explanations ----------
-function flagSentences(F){
-  const out=[]; const avg = F.avg||0; const lens=F.sentLens;
-  F.sents.forEach((s,i)=>{
-    const len = lens[i]||0; const toks = tokens(s);
-    const formPhrases = /(in conclusion|in this article|this guide|the following steps|it is important to note|studies have shown|research suggests)/i;
-    let score=0; let tags=[];
-    if(Math.abs(len-avg)<=3){ score+=0.6; tags.push('Formulaic Flow'); }
-    if(formPhrases.test(s)) { score+=0.6; tags.push('Rigid Guidance'); }
-    if(/^[A-Z][a-z]+\\s[a-z]+\\s(is|are|was|were)\\s/.test(s)) { score+=0.4; tags.push('Robotic Formality'); }
-    if(toks.filter(w=>w.length<=3).length/toks.length>0.65){ score+=0.3; tags.push('Lacks Creative Grammar'); }
-    if(score>0){ out.push({s,score,tags:[...new Set(tags)].slice(0,2)}); }
-  });
-  return out.sort((a,b)=>b.score-a.score).slice(0,8);
-}
-
-function explanations(F){
-  const xs=[]; const hs=[];
-  if (F.burstiness<0.35) xs.push(['Robotic Formality','Low burstiness and neat structure feel template-like.']);
-  if (F.repetition>0.05) xs.push(['Formulaic Flow','Repeated n-grams/phrases suggest templated wording.']);
-  if (F.punctDiv<0.35) xs.push(['Lacks Creative Grammar','Limited punctuation variety; few rhetorical moves.']);
-  if (F.burstiness>=0.35) hs.push(['Varied Rhythm','Sentence-length variance suggests human cadence.']);
-  if (F.ttr>=0.45) hs.push(['Informative Analysis','Lexical variety implies authorial choice.']);
-  if (F.punctDiv>=0.35) hs.push(['Conversational Tone','Punctuation variety supports natural flow.']);
-  return {ai:xs,human:hs,burst:F.burstiness?.toFixed(2),ttr:F.ttr?.toFixed(2)};
-}
-
-// ---------- UI ----------
-const $ = sel => document.querySelector(sel);
-$('#scan').addEventListener('click', ()=>{
-  const text = $('#input').value.trim();
-  const res = score(text);
-
-  if (res.tooShort){
-    $('#label').textContent = 'Too short';
-    $('#label').className = 'badge b-unclear';
-    $('#pAI').textContent = '—%'; $('#barAI').value = 0;
-    $('#pMix').textContent = '—%'; $('#barMix').value = 0;
-    $('#pHum').textContent = '—%'; $('#barHum').value = 0;
-    $('#sentences').innerHTML = '<li class="muted">Need ≥ 80 words and a few sentences for a reliable check.</li>';
-    $('#explain').innerHTML = '<div class="muted">Add more text to analyze.</div>';
-    return;
-  }
-
-  $('#label').textContent = res.label; $('#label').className = 'badge '+res.cls;
-  $('#pAI').textContent = res.AIpct+"%"; $('#barAI').value = res.AIpct;
-  $('#pMix').textContent = res.Mixpct+"%"; $('#barMix').value = res.Mixpct;
-  $('#pHum').textContent = res.Humanpct+"%"; $('#barHum').value = res.Humanpct;
-
-  const list = $('#sentences'); list.innerHTML='';
-  if(res.flags.length===0){ list.innerHTML = '<li class="muted">No standout AI-like sentences flagged.</li>'; }
-  res.flags.forEach(f=>{
-    const li=document.createElement('li');
-    li.innerHTML = `<div>“${f.s.replace(/</g,'&lt;').replace(/>/g,'&gt;')}”</div><div style="margin:6px 0">`+
-      f.tags.map(t=>`<span class="tag">${t}</span>`).join('')+`</div>`;
-    list.appendChild(li);
-  });
-
-  const ex = $('#explain');
-  const ai = res.explain.ai.map(([k,v])=>`<div><strong>${k}</strong> — ${v}</div>`).join('');
-  const hu = res.explain.human.map(([k,v])=>`<div><strong>${k}</strong> — ${v}</div>`).join('');
-  ex.innerHTML = `
-    <div style="margin-bottom:8px"><strong>AI text similarities</strong></div>
-    ${ai || '<div class="muted">None.</div>'}
-    <div style="margin:10px 0 8px"><strong>Human text similarities</strong></div>
-    ${hu || '<div class="muted">None.</div>'}
-    <div style="margin-top:10px" class="muted">Burstiness: <span class="mono">${res.explain.burst}</span>, TTR: <span class="mono">${res.explain.ttr}</span></div>
-  `;
-});
-</script>
+  <!-- IMPORTANT: cache-buster to ensure the new JS loads -->
+  <script src="script.js?v=2"></script>
 </body>
 </html>
