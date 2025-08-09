@@ -1,64 +1,29 @@
-// --- Calibration knobs to mimic GPTZero vibe ---
-const CAL = {
-  SHIFT: -0.08,     // negative -> more "human" overall
-  SLOPE: 0.18,      // larger -> softer curve; smaller -> steeper
-  HUMAN_BONUS: 0.12, // extra human weight from burstiness/TTR
-  MIX_CAP: 15       // Mixed% won't exceed this
-};
+// --- utils you already have: splitSentences, tokens, uniq, ngrams, clamp01, scale ---
 
-function logistic(x){ return 1/(1+Math.exp(-x)); }
+function features(text){
+  const sents = splitSentences(text);
+  const words = tokens(text);
+  const sentLens = sents.map(s=>tokens(s).length).filter(n=>n>0);
+  const avg = sentLens.length ? sentLens.reduce((a,b)=>a+b,0)/sentLens.length : 0;
+  const std = sentLens.length>1 ? Math.sqrt(sentLens.map(x=> (x-avg)**2).reduce((a,b)=>a+b,0)/sentLens.length) : 0;
+  const burstiness = avg>0 ? std/avg : 0;
 
-// Map our raw AI strength to a calibrated AI probability (0..1)
-function mapToGPTZero(rawAI, burst, ttr){
-  // Center & scale the curve
-  let a = logistic((rawAI + CAL.SHIFT) / CAL.SLOPE);
+  const ttr = words.length ? uniq(words).length/words.length : 0;
 
-  // Human bonus when burstiness/TTR are healthy
-  // (thresholds roughly where human text starts to look varied)
-  const burstBonus = Math.max(0, burst - 0.32) / 0.50; // 0..~1
-  const ttrBonus   = Math.max(0, ttr   - 0.42) / 0.35; // 0..~1
-  const bonus = Math.max(0, (burstBonus + ttrBonus) / 2);
+  // stopword ratio
+  const stops = new Set('a about above after again against all am an and any are as at be because been before being below between both but by could did do does doing down during each few for from further had has have having he her here hers herself him himself his how i if in into is it its itself just me more most my myself no nor not of off on once only or other our ours ourselves out over own same she should so some such than that the their theirs them themselves then there these they this those through to too under until up very was we were what when where which while who whom why with you your yours yourself yourselves'.split(/\s+/));
+  const stopRatio = words.length ? words.filter(w=>stops.has(w)).length/words.length : 0;
 
-  a = Math.max(0, a - CAL.HUMAN_BONUS * bonus);
-  return Math.min(1, Math.max(0, a));
-}
+  // n-gram repetition (2–4 grams)
+  const repScores = [2,3,4].map(n=>{
+    const ng=ngrams(words,n); if(!ng.length) return 0;
+    const m=new Map(); ng.forEach(x=>m.set(x,(m.get(x)||0)+1));
+    const repeats=[...m.values()].filter(v=>v>1).reduce((a,b)=>a+b,0);
+    return repeats/ng.length;
+  });
+  const repetition = repScores.reduce((a,b)=>a+b,0)/(repScores.length||1);
 
-// Replace your score() with this calibrated version
-function score(text){
-  const F = features(text);
-  const { burstiness, ttr, repetition, punctDiv, avg } = F;
-
-  // Same raw AI strength recipe you had (tweakable weights)
-  const ai_burst = 1 - scale(burstiness, 0.25, 0.80); // lower burst → more AI
-  const ai_ttr   = 1 - scale(ttr,        0.35, 0.65); // lower TTR   → more AI
-  const ai_rep   =      scale(repetition, 0.02, 0.15); // more repeats→ more AI
-  const ai_pdiv  = 1 - scale(punctDiv,   0.20, 0.75); // low punct div→ more AI
-  let   ai_avg   = 1 - (2 * ((avg - 18) / 15) ** 2);  // very even avg length → more AI
-  ai_avg = clamp01(ai_avg);
-
-  const rawAI = 0.30*ai_burst + 0.24*ai_ttr + 0.20*ai_rep + 0.14*ai_pdiv + 0.12*ai_avg;
-
-  // Calibrated AI probability (0..1), shaped to feel like GPTZero
-  const aiProb = mapToGPTZero(rawAI, burstiness, ttr);
-
-  // Convert to percentages and keep a small Mixed bucket
-  let AIpct    = Math.round(100 * aiProb);
-  let Humanpct = Math.max(0, 100 - AIpct);
-  let Mixpct   = Math.min(CAL.MIX_CAP, Math.max(0, 100 - (AIpct + Humanpct)));
-
-  // Re-normalize so AI% + Human% + Mixed% = 100
-  const total = AIpct + Humanpct + Mixpct;
-  if (total !== 100){
-    const diff = 100 - total;
-    // Nudge the largest bucket by the diff to sum cleanly
-    if (AIpct >= Humanpct && AIpct >= Mixpct) AIpct += diff;
-    else if (Humanpct >= AIpct && Humanpct >= Mixpct) Humanpct += diff;
-    else Mixpct += diff;
-  }
-
-  // Labels like GPTZero
-  let label='Unclear', cls='b-unclear';
-  if (AIpct >= 60){ label='Likely AI';    cls='b-ai'; }
-  else if (AIpct < 40){ label='Likely Human'; cls='b-human'; }
-
-  const flags   = flagSentences(F);   // your existing flagger
+  // simple style signals
+  const raw = text;
+  const hasContractions = /(?:\b\w+'[a-z]+\b)/i.test(raw);      // we’ll, don’t, it’s
+  const secondPerson    = /\byo
