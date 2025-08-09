@@ -1,0 +1,172 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <title></title>
+  <meta name="Generator" content="Cocoa HTML Writer">
+  <meta name="CocoaVersion" content="2575.7">
+  <style type="text/css">
+    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}
+    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; min-height: 14.0px}
+  </style>
+</head>
+<body>
+<p class="p1">&lt;!DOCTYPE html&gt;</p>
+<p class="p1">&lt;html lang="en"&gt;</p>
+<p class="p1">&lt;head&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;meta charset="utf-8" /&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;meta name="viewport" content="width=device-width, initial-scale=1" /&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;title&gt;GPTZero-Style Text Scanner&lt;/title&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;style&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>:root{--bg:#0b0c10;--panel:#111318;--muted:#6b7280;--text:#e5e7eb;--accent:#60a5fa;--good:#22c55e;--warn:#f59e0b;--bad:#ef4444}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>*{box-sizing:border-box} body{margin:0;background:#0b0c10;color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>.wrap{max-width:1100px;margin:40px auto;padding:20px}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>.card{background:var(--panel);border:1px solid #1f2430;border-radius:18px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.25)}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>h1{font-size:28px;margin:0 0 8px} .sub{color:var(--muted);margin-bottom:18px}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>textarea{width:100%;min-height:280px;border-radius:14px;border:1px solid #222631;background:#0b0e14;color:var(--text);padding:14px;resize:vertical}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>.row{display:grid;grid-template-columns:1fr;gap:18px}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>@media(min-width:900px){.row{grid-template-columns:1.2fr .8fr}}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>button{cursor:pointer;border:0;border-radius:12px;padding:12px 16px;background:var(--accent);color:#081018;font-weight:700}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>.muted{color:var(--muted)} .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>.badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>.b-human{background:rgba(34,197,94,.15);color:var(--good)}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>.b-unclear{background:rgba(245,158,11,.15);color:var(--warn)}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>.b-ai{background:rgba(239,68,68,.15);color:var(--bad)}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>.grid{display:grid;gap:12px;grid-template-columns:repeat(3,1fr)}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>.kpi{background:#0a0d13;border:1px solid #1c2230;border-radius:14px;padding:14px}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>progress{width:100%;height:10px;border-radius:999px;overflow:hidden}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>progress::-webkit-progress-bar{background:#111827}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>progress::-webkit-progress-value{background:var(--accent)}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>.list{background:#0a0d13;border:1px solid #1c2230;border-radius:14px;padding:14px}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>.tag{display:inline-block;background:#121826;border:1px solid #1f2937;color:#9ca3af;padding:2px 8px;border-radius:999px;font-size:12px;margin-right:6px}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>.small{font-size:13px}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>.footer{margin-top:24px;color:#94a3b8}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;/style&gt;</p>
+<p class="p1">&lt;/head&gt;</p>
+<p class="p1">&lt;body&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;div class="wrap"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div class="card"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>&lt;h1&gt;GPTZero-Style Text Scanner&lt;/h1&gt;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>&lt;div class="sub"&gt;Paste text, click &lt;strong&gt;Scan&lt;/strong&gt;. Runs locally in your browser. No uploads.&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">      </span>&lt;div class="row"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;textarea id="input" placeholder="Paste your article, blog, or essay here..."&gt;&lt;/textarea&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;div style="display:flex;gap:10px;margin-top:12px;align-items:center"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;button id="scan"&gt;Scan&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;span class="muted small"&gt;Heuristic replica of GPTZero vibe.&lt;/span&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;div class="kpi"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div style="display:flex;justify-content:space-between"&gt;&lt;div&gt;Overall&lt;/div&gt;&lt;div id="label" class="badge b-unclear"&gt;—&lt;/div&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div class="grid" style="margin-top:12px"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div&gt;&lt;div class="small muted"&gt;AI-generated&lt;/div&gt;&lt;div class="mono" id="pAI"&gt;—%&lt;/div&gt;&lt;progress id="barAI" max="100" value="0"&gt;&lt;/progress&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div&gt;&lt;div class="small muted"&gt;Mixed&lt;/div&gt;&lt;div class="mono" id="pMix"&gt;—%&lt;/div&gt;&lt;progress id="barMix" max="100" value="0"&gt;&lt;/progress&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div&gt;&lt;div class="small muted"&gt;Human&lt;/div&gt;&lt;div class="mono" id="pHum"&gt;—%&lt;/div&gt;&lt;progress id="barHum" max="100" value="0"&gt;&lt;/progress&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;div class="list" style="margin-top:14px"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div class="small muted" style="margin-bottom:8px"&gt;Advanced sentence scanning&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;ol id="sentences" class="small"&gt;&lt;/ol&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;div class="list" style="margin-top:14px"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div class="small muted" style="margin-bottom:8px"&gt;Explanations&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div id="explain" class="small"&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">      </span>&lt;div class="footer small"&gt;Disclaimer: heuristic approximation. Not affiliated with GPTZero.&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;script&gt;</p>
+<p class="p1">function splitSentences(text){ return text.split(/(?&lt;=[.!?])\\s+/).map(s=&gt;s.trim()).filter(Boolean); }</p>
+<p class="p1">function tokens(text){ return (text.toLowerCase().match(/[a-zA-Z']+/g)||[]); }</p>
+<p class="p1">function uniq(arr){return Array.from(new Set(arr));}</p>
+<p class="p1">function ngrams(tk,n){const out=[]; for(let i=0;i&lt;=tk.length-n;i++) out.push(tk.slice(i,i+n).join(' ')); return out;}</p>
+<p class="p1">function features(text){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const sents = splitSentences(text);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const words = tokens(text);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const sentLens = sents.map(s=&gt;tokens(s).length).filter(n=&gt;n&gt;0);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const avg = sentLens.length? sentLens.reduce((a,b)=&gt;a+b,0)/sentLens.length : 0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const std = sentLens.length&gt;1? Math.sqrt(sentLens.map(x=&gt; (x-avg)**2).reduce((a,b)=&gt;a+b,0)/sentLens.length):0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const burstiness = avg&gt;0? std/avg : 0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const ttr = words.length? uniq(words).length/words.length : 0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const stops = new Set('a about above after again against all am an and any are as at be because been before being below between both but by could did do does doing down during each few for from further had has have having he her here hers herself him himself his how i if in into is it its itself just me more most my myself no nor not of off on once only or other our ours ourselves out over own same she should so some such than that the their theirs them themselves then there these they this those through to too under until up very was we were what when where which while who whom why with you your yours yourself yourselves'.split(/\\s+/));</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const stopRatio = words.length? words.filter(w=&gt;stops.has(w)).length/words.length : 0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const repScores = [2,3,4].map(n=&gt;{const ng=ngrams(words,n); if(!ng.length) return 0; const m=new Map(); ng.forEach(x=&gt;m.set(x,(m.get(x)||0)+1)); const repeats=[...m.values()].filter(v=&gt;v&gt;1).reduce((a,b)=&gt;a+b,0); return repeats/ng.length;});</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const repetition = repScores.reduce((a,b)=&gt;a+b,0)/ (repScores.length||1);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const puncts = (text.match(/[^\\w\\s]/g)||[]); const punctDiv = puncts.length? new Set(puncts).size/puncts.length : 0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return {sents, words, sentLens, avg, std, burstiness, ttr, stopRatio, repetition, punctDiv};</p>
+<p class="p1">}</p>
+<p class="p1">function clamp01(x){return Math.max(0,Math.min(1,x));}</p>
+<p class="p1">function scale(x,lo,hi){return clamp01((x-lo)/(hi-lo));}</p>
+<p class="p1">function score(text){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const F = features(text);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const {burstiness,ttr,repetition,punctDiv,avg} = F;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const ai_burst = 1 - scale(burstiness,0.25,0.8);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const ai_ttr <span class="Apple-converted-space">  </span>= 1 - scale(ttr,0.35,0.65);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const ai_rep <span class="Apple-converted-space">  </span>= scale(repetition,0.02,0.15);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const ai_pdiv<span class="Apple-converted-space">  </span>= 1 - scale(punctDiv,0.2,0.75);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let ai_avg = 1 - (2 * ((avg-18)/15)**2); ai_avg = clamp01(ai_avg);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const AIstrength = 0.30*ai_burst + 0.24*ai_ttr + 0.20*ai_rep + 0.14*ai_pdiv + 0.12*ai_avg;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const Humanstrength = 1 - AIstrength*0.85 + scale(burstiness,0.25,0.8)*0.3 + scale(ttr,0.35,0.65)*0.2;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let AIpct = Math.round(100*(AIstrength/(AIstrength+Humanstrength)));</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let Humanpct = Math.round(100*(Humanstrength/(AIstrength+Humanstrength)));</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let Mixpct = Math.max(0,100-(AIpct+Humanpct));</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let label='Unclear', cls='b-unclear';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if (AIpct&gt;=60){ label='Likely AI'; cls='b-ai'; }</p>
+<p class="p1"><span class="Apple-converted-space">  </span>else if (AIpct&lt;40){ label='Likely Human'; cls='b-human'; }</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const flags = flagSentences(F);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const explain = explanations(F);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return {AIpct,Humanpct,Mixpct,label,cls,flags,explain};</p>
+<p class="p1">}</p>
+<p class="p1">function flagSentences(F){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const out=[]; const avg = F.avg||0; const lens=F.sentLens;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>F.sents.forEach((s,i)=&gt;{</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const len = lens[i]||0; const toks = tokens(s);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const formPhrases = /(in conclusion|in this article|this guide|the following steps|it is important to note|studies have shown|research suggests)/i;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>let score=0; let tags=[];</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(Math.abs(len-avg)&lt;=3){ score+=0.6; tags.push('Formulaic Flow'); }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(formPhrases.test(s)) { score+=0.6; tags.push('Rigid Guidance'); }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(/^[A-Z][a-z]+\\s[a-z]+\\s(is|are|was|were)\\s/.test(s)) { score+=0.4; tags.push('Robotic Formality'); }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(toks.filter(w=&gt;w.length&lt;=3).length/toks.length&gt;0.65){ score+=0.3; tags.push('Lacks Creative Grammar'); }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(score&gt;0){ out.push({s,score,tags:[...new Set(tags)].slice(0,2)}); }</p>
+<p class="p1"><span class="Apple-converted-space">  </span>});</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return out.sort((a,b)=&gt;b.score-a.score).slice(0,8);</p>
+<p class="p1">}</p>
+<p class="p1">function explanations(F){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const xs=[]; const hs=[];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if (F.burstiness&lt;0.35) xs.push(['Robotic Formality','Low burstiness and neat structure feel template-like.']);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if (F.repetition&gt;0.05) xs.push(['Formulaic Flow','Repeated n-grams/phrases suggest templated wording.']);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if (F.punctDiv&lt;0.35) xs.push(['Lacks Creative Grammar','Limited punctuation variety; few rhetorical moves.']);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if (F.burstiness&gt;=0.35) hs.push(['Varied Rhythm','Sentence-length variance suggests human cadence.']);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if (F.ttr&gt;=0.45) hs.push(['Informative Analysis','Lexical variety implies authorial choice.']);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if (F.punctDiv&gt;=0.35) hs.push(['Conversational Tone','Punctuation variety supports natural flow.']);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return {ai:xs,human:hs,burst:F.burstiness.toFixed(2),ttr:F.ttr.toFixed(2)};</p>
+<p class="p1">}</p>
+<p class="p1">const $ = sel =&gt; document.querySelector(sel);</p>
+<p class="p1">document.getElementById('scan').addEventListener('click', ()=&gt;{</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const text = document.getElementById('input').value.trim();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(!text){ alert('Paste some text first.'); return; }</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const res = score(text);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const label = document.getElementById('label'); label.textContent = res.label; label.className = 'badge '+res.cls;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>document.getElementById('pAI').textContent = res.AIpct+'%'; document.getElementById('barAI').value = res.AIpct;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>document.getElementById('pMix').textContent = res.Mixpct+'%'; document.getElementById('barMix').value = res.Mixpct;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>document.getElementById('pHum').textContent = res.Humanpct+'%'; document.getElementById('barHum').value = res.Humanpct;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const list = document.getElementById('sentences'); list.innerHTML='';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(res.flags.length===0){ list.innerHTML = '&lt;li class=\"muted\"&gt;No standout AI-like sentences flagged.&lt;/li&gt;'; }</p>
+<p class="p1"><span class="Apple-converted-space">  </span>res.flags.forEach(f=&gt;{ const li=document.createElement('li'); li.innerHTML = `&lt;div&gt;“${f.s.replace(/&lt;/g,'&amp;lt;').replace(/&gt;/g,'&amp;gt;')}”&lt;/div&gt;&lt;div style=\"margin:6px 0\"&gt;`+f.tags.map(t=&gt;`&lt;span class=\"tag\"&gt;${t}&lt;/span&gt;`).join('')+`&lt;/div&gt;`; list.appendChild(li); });</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const ex = document.getElementById('explain');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const ai = res.explain.ai.map(([k,v])=&gt;`&lt;div&gt;&lt;strong&gt;${k}&lt;/strong&gt; — ${v}&lt;/div&gt;`).join('');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const hu = res.explain.human.map(([k,v])=&gt;`&lt;div&gt;&lt;strong&gt;${k}&lt;/strong&gt; — ${v}&lt;/div&gt;`).join('');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ex.innerHTML = `&lt;div style=\"margin-bottom:8px\"&gt;&lt;strong&gt;AI text similarities&lt;/strong&gt;&lt;/div&gt;${ai||'&lt;div class=\"muted\"&gt;None.&lt;/div&gt;'}&lt;div style=\"margin:10px 0 8px\"&gt;&lt;strong&gt;Human text similarities&lt;/strong&gt;&lt;/div&gt;${hu||'&lt;div class=\"muted\"&gt;None.&lt;/div&gt;'}&lt;div style=\"margin-top:10px\" class=\"muted\"&gt;Burstiness: &lt;span class=\"mono\"&gt;${res.explain.burst}&lt;/span&gt;, TTR: &lt;span class=\"mono\"&gt;${res.explain.ttr}&lt;/span&gt;&lt;/div&gt;`;</p>
+<p class="p1">});</p>
+<p class="p1">&lt;/script&gt;</p>
+<p class="p1">&lt;/body&gt;</p>
+<p class="p1">&lt;/html&gt;</p>
+</body>
+</html>
