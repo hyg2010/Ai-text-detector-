@@ -65,4 +65,87 @@ function explanations(F){
   if (F.punctDiv<0.35) xs.push(['Lacks Creative Grammar','Limited punctuation variety; few rhetorical moves.']);
 
   if (F.burstiness>=0.35) hs.push(['Varied Rhythm','Sentence-length variance suggests human cadence.']);
-  if (F.ttr>=0.45)       hs.push(['Informative Analysis','Lexical variety implies au]()
+  if (F.ttr>=0.45)       hs.push(['Informative Analysis','Lexical variety implies authorial choice.']);
+  if (F.punctDiv>=0.35)  hs.push(['Conversational Tone','Punctuation variety supports natural flow.']);
+
+  return {ai:xs,human:hs,burst:F.burstiness.toFixed(2),ttr:F.ttr.toFixed(2)};
+}
+
+/* ------------------ calibrated scoring (closer to GPTZero feel) ------------------ */
+function score(text){
+  const F = features(text);
+  const { burstiness, ttr, repetition, punctDiv, avg } = F;
+
+  // AI-like signals
+  const ai_burst = 1 - scale(burstiness, 0.20, 0.75);
+  const ai_ttr   = 1 - scale(ttr,        0.33, 0.62);
+  const ai_rep   = scale(repetition,     0.02, 0.16);
+  const ai_pdiv  = 1 - scale(punctDiv,   0.22, 0.70);
+  let   ai_avg   = 1 - scale(Math.abs(avg-20), 0, 18);
+
+  const AIstrength =
+      0.26*ai_burst +
+      0.20*ai_ttr   +
+      0.20*ai_rep   +
+      0.14*ai_pdiv  +
+      0.10*ai_avg;
+
+  // Human-like signals
+  const humanBurst = scale(burstiness, 0.20, 0.75);
+  const humanTTR   = scale(ttr,        0.33, 0.62);
+  const humanPunc  = scale(punctDiv,   0.22, 0.70);
+  const humanAvg   = 1 - Math.abs((avg-22))/22;
+
+  const Humanstrength =
+      0.38*humanBurst +
+      0.28*humanTTR   +
+      0.18*humanPunc  +
+      0.10*humanAvg   +
+      0.06*(1-AIstrength);
+
+  let AIpct    = Math.round(100*(AIstrength/(AIstrength+Humanstrength)));
+  let Humanpct = Math.round(100*(Humanstrength/(AIstrength+Humanstrength)));
+  let Mixpct   = Math.max(0, 100 - (AIpct + Humanpct));
+
+  let label='Unclear', cls='b-unclear';
+  if (AIpct >= 60)      { label='Likely AI';    cls='b-ai'; }
+  else if (AIpct < 40 ) { label='Likely Human'; cls='b-human'; }
+
+  const flags   = flagSentences(F);
+  const explain = explanations(F);
+  return { AIpct, Humanpct, Mixpct, label, cls, flags, explain };
+}
+
+/* ------------------ UI wiring ------------------ */
+const $ = sel => document.querySelector(sel);
+
+window.addEventListener('DOMContentLoaded', ()=>{
+  const btn = $('#scan');
+  btn.addEventListener('click', ()=>{
+    const text = $('#input').value.trim();
+    if(!text){ alert('Paste some text first.'); return; }
+
+    const res = score(text);
+
+    const label = $('#label'); label.textContent = res.label; label.className = 'badge '+res.cls;
+    $('#pAI').textContent  = res.AIpct+'%';   $('#barAI').value  = res.AIpct;
+    $('#pMix').textContent = res.Mixpct+'%';  $('#barMix').value = res.Mixpct;
+    $('#pHum').textContent = res.Humanpct+'%';$('#barHum').value = res.Humanpct;
+
+    const list = $('#sentences'); list.innerHTML='';
+    if(res.flags.length===0){ list.innerHTML = '<li class="muted">No standout AI-like sentences flagged.</li>'; }
+    res.flags.forEach(f=>{
+      const li=document.createElement('li');
+      li.innerHTML = `<div>“${f.s.replace(/</g,'&lt;').replace(/>/g,'&gt;')}”</div><div style="margin:6px 0">`+
+                     f.tags.map(t=>`<span class="tag">${t}</span>`).join('')+`</div>`;
+      list.appendChild(li);
+    });
+
+    const ex = $('#explain');
+    const ai = res.explain.ai.map(([k,v])=>`<div><strong>${k}</strong> — ${v}</div>`).join('');
+    const hu = res.explain.human.map(([k,v])=>`<div><strong>${k}</strong> — ${v}</div>`).join('');
+    ex.innerHTML = `<div style="margin-bottom:8px"><strong>AI text similarities</strong></div>${ai||'<div class="muted">None.</div>'}
+                    <div style="margin:10px 0 8px"><strong>Human text similarities</strong></div>${hu||'<div class="muted">None.</div>'}
+                    <div style="margin-top:10px" class="muted">Burstiness: <span class="mono">${res.explain.burst}</span>, TTR: <span class="mono">${res.explain.ttr}</span></div>`;
+  });
+});
