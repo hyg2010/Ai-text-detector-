@@ -1,33 +1,50 @@
-{\rtf1\ansi\ansicpg1252\cocoartf2822
-\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
-{\colortbl;\red255\green255\blue255;}
-{\*\expandedcolortbl;;}
-\margl1440\margr1440\vieww11520\viewh8400\viewkind0
-\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+function checkText() {
+  const text = document.getElementById("inputText").value.trim();
+  if (!text) {
+    document.getElementById("result").innerHTML = "Paste some text first.";
+    return;
+  }
 
-\f0\fs24 \cf0 function checkText() \{\
-  const text = document.getElementById("inputText").value;\
-\
-  // Simple AI-likeness scoring logic (mock for now)\
-  let aiScore = 0;\
-\
-  const aiIndicators = [\
-    "in conclusion",\
-    "therefore",\
-    "moreover",\
-    "in summary",\
-    "it is important to note"\
-  ];\
-\
-  aiIndicators.forEach(phrase => \{\
-    if (text.toLowerCase().includes(phrase)) \{\
-      aiScore += 20;\
-    \}\
-  \});\
-\
-  let humanScore = 100 - aiScore;\
-\
-  document.getElementById("result").innerHTML =\
-    `<strong>AI Probability:</strong> $\{aiScore\}%<br><strong>Human Probability:</strong> $\{humanScore\}%`;\
-\}\
+  // Simple heuristic AI-likeness score
+  const lowers = text.toLowerCase();
+
+  // signals
+  const boilerplate = /(in conclusion|in summary|moreover|therefore|it is important to note|the following steps)/g;
+  const listicle = /\b(\d+)\s+(ways|tips|reasons)\b/gi;
+
+  // sentence stats
+  const sentences = lowers.split(/(?<=[.!?])\s+/).filter(Boolean);
+  const lens = sentences.map(s => (s.match(/[a-zA-Z']+/g) || []).length);
+  const avg = lens.reduce((a,b)=>a+b,0) / Math.max(1,lens.length);
+  const std = Math.sqrt(lens.map(x => (x-avg)**2).reduce((a,b)=>a+b,0) / Math.max(1,lens.length));
+  const burstiness = avg ? std/avg : 0;
+
+  // lexical variety (type-token ratio)
+  const words = (lowers.match(/[a-zA-Z']+/g) || []);
+  const uniq = new Set(words).size;
+  const ttr = words.length ? (uniq/words.length) : 0;
+
+  // naive scoring
+  let ai = 0;
+  if (burstiness < 0.35) ai += 25;          // uniform sentence lengths
+  if (ttr < 0.45) ai += 20;                 // limited vocabulary variety
+  if ((words.length > 0) && (words.length / Math.max(1, sentences.length) > 20)) ai += 10; // long even sentences
+  if (boilerplate.test(lowers)) ai += 20;
+  if (listicle.test(lowers)) ai += 10;
+
+  // clamp and derive percentages
+  ai = Math.max(0, Math.min(90, ai));
+  const human = 100 - ai;
+  const mixed = 0;
+
+  // label
+  let label = "Unclear";
+  if (ai >= 60) label = "Likely AI";
+  else if (ai < 40) label = "Likely Human";
+
+  document.getElementById("result").innerHTML =
+    `<strong>AI-generated:</strong> ${ai}%<br>` +
+    `<strong>Mixed:</strong> ${mixed}%<br>` +
+    `<strong>Human:</strong> ${human}%<br>` +
+    `<em>Label:</em> ${label}`;
 }
