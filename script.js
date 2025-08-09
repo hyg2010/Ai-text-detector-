@@ -1,50 +1,64 @@
-function checkText() {
-  const text = document.getElementById("inputText").value.trim();
-  if (!text) {
-    document.getElementById("result").innerHTML = "Paste some text first.";
-    return;
+// --- Calibration knobs to mimic GPTZero vibe ---
+const CAL = {
+  SHIFT: -0.08,     // negative -> more "human" overall
+  SLOPE: 0.18,      // larger -> softer curve; smaller -> steeper
+  HUMAN_BONUS: 0.12, // extra human weight from burstiness/TTR
+  MIX_CAP: 15       // Mixed% won't exceed this
+};
+
+function logistic(x){ return 1/(1+Math.exp(-x)); }
+
+// Map our raw AI strength to a calibrated AI probability (0..1)
+function mapToGPTZero(rawAI, burst, ttr){
+  // Center & scale the curve
+  let a = logistic((rawAI + CAL.SHIFT) / CAL.SLOPE);
+
+  // Human bonus when burstiness/TTR are healthy
+  // (thresholds roughly where human text starts to look varied)
+  const burstBonus = Math.max(0, burst - 0.32) / 0.50; // 0..~1
+  const ttrBonus   = Math.max(0, ttr   - 0.42) / 0.35; // 0..~1
+  const bonus = Math.max(0, (burstBonus + ttrBonus) / 2);
+
+  a = Math.max(0, a - CAL.HUMAN_BONUS * bonus);
+  return Math.min(1, Math.max(0, a));
+}
+
+// Replace your score() with this calibrated version
+function score(text){
+  const F = features(text);
+  const { burstiness, ttr, repetition, punctDiv, avg } = F;
+
+  // Same raw AI strength recipe you had (tweakable weights)
+  const ai_burst = 1 - scale(burstiness, 0.25, 0.80); // lower burst → more AI
+  const ai_ttr   = 1 - scale(ttr,        0.35, 0.65); // lower TTR   → more AI
+  const ai_rep   =      scale(repetition, 0.02, 0.15); // more repeats→ more AI
+  const ai_pdiv  = 1 - scale(punctDiv,   0.20, 0.75); // low punct div→ more AI
+  let   ai_avg   = 1 - (2 * ((avg - 18) / 15) ** 2);  // very even avg length → more AI
+  ai_avg = clamp01(ai_avg);
+
+  const rawAI = 0.30*ai_burst + 0.24*ai_ttr + 0.20*ai_rep + 0.14*ai_pdiv + 0.12*ai_avg;
+
+  // Calibrated AI probability (0..1), shaped to feel like GPTZero
+  const aiProb = mapToGPTZero(rawAI, burstiness, ttr);
+
+  // Convert to percentages and keep a small Mixed bucket
+  let AIpct    = Math.round(100 * aiProb);
+  let Humanpct = Math.max(0, 100 - AIpct);
+  let Mixpct   = Math.min(CAL.MIX_CAP, Math.max(0, 100 - (AIpct + Humanpct)));
+
+  // Re-normalize so AI% + Human% + Mixed% = 100
+  const total = AIpct + Humanpct + Mixpct;
+  if (total !== 100){
+    const diff = 100 - total;
+    // Nudge the largest bucket by the diff to sum cleanly
+    if (AIpct >= Humanpct && AIpct >= Mixpct) AIpct += diff;
+    else if (Humanpct >= AIpct && Humanpct >= Mixpct) Humanpct += diff;
+    else Mixpct += diff;
   }
 
-  // Simple heuristic AI-likeness score
-  const lowers = text.toLowerCase();
+  // Labels like GPTZero
+  let label='Unclear', cls='b-unclear';
+  if (AIpct >= 60){ label='Likely AI';    cls='b-ai'; }
+  else if (AIpct < 40){ label='Likely Human'; cls='b-human'; }
 
-  // signals
-  const boilerplate = /(in conclusion|in summary|moreover|therefore|it is important to note|the following steps)/g;
-  const listicle = /\b(\d+)\s+(ways|tips|reasons)\b/gi;
-
-  // sentence stats
-  const sentences = lowers.split(/(?<=[.!?])\s+/).filter(Boolean);
-  const lens = sentences.map(s => (s.match(/[a-zA-Z']+/g) || []).length);
-  const avg = lens.reduce((a,b)=>a+b,0) / Math.max(1,lens.length);
-  const std = Math.sqrt(lens.map(x => (x-avg)**2).reduce((a,b)=>a+b,0) / Math.max(1,lens.length));
-  const burstiness = avg ? std/avg : 0;
-
-  // lexical variety (type-token ratio)
-  const words = (lowers.match(/[a-zA-Z']+/g) || []);
-  const uniq = new Set(words).size;
-  const ttr = words.length ? (uniq/words.length) : 0;
-
-  // naive scoring
-  let ai = 0;
-  if (burstiness < 0.35) ai += 25;          // uniform sentence lengths
-  if (ttr < 0.45) ai += 20;                 // limited vocabulary variety
-  if ((words.length > 0) && (words.length / Math.max(1, sentences.length) > 20)) ai += 10; // long even sentences
-  if (boilerplate.test(lowers)) ai += 20;
-  if (listicle.test(lowers)) ai += 10;
-
-  // clamp and derive percentages
-  ai = Math.max(0, Math.min(90, ai));
-  const human = 100 - ai;
-  const mixed = 0;
-
-  // label
-  let label = "Unclear";
-  if (ai >= 60) label = "Likely AI";
-  else if (ai < 40) label = "Likely Human";
-
-  document.getElementById("result").innerHTML =
-    `<strong>AI-generated:</strong> ${ai}%<br>` +
-    `<strong>Mixed:</strong> ${mixed}%<br>` +
-    `<strong>Human:</strong> ${human}%<br>` +
-    `<em>Label:</em> ${label}`;
-}
+  const flags   = flagSentences(F);   // your existing flagger
