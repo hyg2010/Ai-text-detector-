@@ -1,289 +1,318 @@
-/* ---------------------------------------------------------
-   GPTZero-ish local heuristic scorer (no upload, no models)
-   Emphasizes cues GPTZero tends to reward/punish:
-   - “Newsy” facts, sources, dates, money → Human
-   - Listicles / steps / formulaic advice → AI
-   - Uniform sentence lengths, low contractions → AI
-   - Proper nouns, quotes, numerals → Human
---------------------------------------------------------- */
+// --- Ai-text-detector (client-only) ---
+// No uploads. Runs entirely in the browser.
 
-const stop = new Set(("a,an,the,and,or,of,to,in,for,on,at,as,by,from,with,that,which,who,whom,whose,be,is,am,are,was,were,been,being,do,does,did,has,have,had,but,if,so,than,then,when,where,why,how,into,about,over,under,more,most,less,least,can,could,may,might,should,would,will,just,also,very,up,down,out,off,not,no,nor,own,same,too,again,once,each,few,other,some,such,only,both,between").split(","));
+(function () {
+  "use strict";
 
-const transitionWords = new Set([
-  "however","moreover","furthermore","additionally","in addition","in conclusion",
-  "overall","meanwhile","therefore","thus","nonetheless","nevertheless",
-  "first","firstly","second","secondly","finally","lastly","next","then"
-]);
-
-const listiclePhrases = [
-  /step\s*\d+/i, /pro\s*tip/i, /\d+\s*(tips|ways|steps|strategies|reasons)/i,
-  /\bhere (are|is)\b/i, /\bin this article\b/i, /\btry this\b/i
-];
-
-const citationPhrases = [
-  /according to/i, /reported/i, /told/i, /data/i, /analysis/i, /study/i,
-  /survey/i, /research/i, /the firm/i, /as of/i, /in \d{4}/i,
-  /reuters/i, /bloomberg/i, /financial times/i, /techcrunch/i, /appfigures/i
-];
-
-const newsishNames = [
-  "OpenAI","Google","Anthropic","DeepMind","xAI","Microsoft","Apple","Meta",
-  "Reuters","Bloomberg","TechCrunch","Financial Times","Appfigures","Sam","Altman",
-  "Musk","Neuralink","Character.ai","Noam","Shazeer","Grok","Claude","FedRAMP"
-];
-
-function splitSentences(text){
-  // keep bullets / steps intact
-  const hard = text
-    .replace(/\r/g,"")
-    .split(/\n+/)
-    .map(line=>line.trim())
-    .filter(Boolean);
-
-  const sents = [];
-  for (const line of hard){
-    if (/^(\d+[\.\)]|[-*•✓❌]|step\s*\d+)/i.test(line)) { sents.push(line); continue; }
-    const parts = line.split(/(?<=[\.\?!])\s+(?=[A-Z“"('\[])/).filter(Boolean);
-    if (parts.length) sents.push(...parts);
-    else sents.push(line);
-  }
-  return sents.filter(s => /\w/.test(s));
-}
-
-function tokens(s){ return s.toLowerCase().match(/[a-z0-9’']+/g) || []; }
-function wordsAll(text){ return tokens(text); }
-
-function uniqCount(arr){ return new Set(arr).size; }
-
-function stddev(xs){
-  const n = xs.length; if (!n) return 0;
-  const m = xs.reduce((a,b)=>a+b,0)/n;
-  const v = xs.reduce((a,b)=>a+(b-m)*(b-m),0)/n;
-  return Math.sqrt(v);
-}
-
-function ratio(a,b){ return b ? a/b : 0; }
-
-function countMatches(text, rex){ 
-  if (rex instanceof RegExp) return (text.match(rex)||[]).length;
-  return rex.reduce((acc,r)=>acc + (text.match(r)||[]).length,0);
-}
-
-function isPassive(sent){
-  // crude: be-aux within 3 tokens of a word ending -ed
-  return /\b(am|is|are|was|were|been|be|being)\b(?:\W+\w+){0,3}\W+\w+ed\b/i.test(sent);
-}
-
-function imperativeStart(line){
-  return /^([A-Z][a-z]+)\b(?!\s+(Inc|LLC|Corp|AI|Labs))/.test(line) &&
-         !/^(The|This|That|These|Those|When|While|With|Where|Why|How|If|In)\b/.test(line) &&
-         !/[\.!?]$/.test(line) && line.split(/\s+/).length <= 8;
-}
-
-function properNounCount(text){
-  // naive: capitalized word not at sentence start, or known org list
-  const words = text.match(/\b[A-Z][a-zA-Z]+\b/g) || [];
-  let count = 0;
-  for (const w of words){
-    if (newsishNames.includes(w)) { count++; continue; }
-    if (!/^(I|A|The|This|That|In|On|At|For|Of|And|But|Or)$/.test(w)) count++;
-  }
-  return count;
-}
-
-function featureExtract(text){
-  const sents = splitSentences(text);
-  const all = wordsAll(text);
-  const totalWords = all.length;
-  const sentLens = sents.map(s => tokens(s).length).filter(n => n>0);
-
-  const burstiness = ratio(stddev(sentLens), (sentLens.reduce((a,b)=>a+b,0)/Math.max(1,sentLens.length)));
-
-  const stopwords = all.filter(w => stop.has(w)).length;
-  const uniqRatio = ratio(uniqCount(all), totalWords);
-
-  const contractions = (text.match(/\b\w+'(t|re|ve|ll|d|m|s)\b/gi)||[]).length;
-  const contractionsRatio = ratio(contractions, totalWords);
-
-  const numerals = (text.match(/[$€£]\s?\d|(?:\b\d{1,3}(?:,\d{3})+|\b\d+)(?:\.\d+)?\s?(%|million|billion|k|m|bn|mm)?/gi)||[]).length;
-  const yearHits = (text.match(/\b(19|20)\d{2}\b/g)||[]).length;
-
-  const bullets = (text.match(/^(?:\s*[-*•✓❌]|\s*\d+[\.\)]\s)/gmi)||[]).length;
-  const steps = countMatches(text, listiclePhrases);
-
-  const transitions = countMatches(text, Array.from(transitionWords).map(w=>new RegExp("\\b"+w+"\\b","gi")));
-
-  const hedges = (text.match(/\b(might|may|could|can help|tends? to|seems?|likely)\b/gi)||[]).length;
-
-  const cites = countMatches(text, citationPhrases);
-
-  const pnouns = properNounCount(text);
-
-  const quotes = (text.match(/["“”']/g)||[]).length/2;
-
-  const passive = sents.filter(isPassive).length;
-
-  const secondPerson = (text.match(/\byou|your|you'll|you’re|you've\b/gi)||[]).length;
-  const secondPersonRatio = ratio(secondPerson, totalWords);
-
-  const imperativeLines = text.split(/\n+/).filter(l=>imperativeStart(l.trim())).length;
-
-  const headingColons = (text.match(/^[A-Z][^\n:]{2,40}:\s/mg)||[]).length;
-
-  // n-gram repetition 2–4 grams
-  const words = tokens(text);
-  const ngramCounts = (n)=>{
-    const m = new Map();
-    for (let i=0;i<=words.length-n;i++){
-      const g = words.slice(i,i+n).join(" ");
-      m.set(g,(m.get(g)||0)+1);
+  // -----------------------------
+  // Safe Scan button hookup
+  // -----------------------------
+  function bindScan() {
+    const btn =
+      document.getElementById("scanBtn") ||
+      document.querySelector('button[data-action="scan"]') ||
+      Array.from(document.querySelectorAll("button"))
+        .find(b => /scan/i.test(b.textContent || ""));
+    if (btn && !btn.__bound) {
+      btn.addEventListener("click", classify);
+      btn.__bound = true;
     }
-    let repeats = 0;
-    for (const v of m.values()) if (v>1) repeats += v-1;
-    return repeats;
-  };
-  const repeats = ngramCounts(2)+ngramCounts(3);
-
-  return {
-    sents, totalWords, burstiness, uniqRatio,
-    stopwordRatio: ratio(stopwords,totalWords),
-    contractionsRatio,
-    numerals: numerals+yearHits,
-    bullets, steps, transitions, hedges, cites, pnouns, quotes,
-    passive, secondPersonRatio, imperativeLines, headingColons, repeats
-  };
-}
-
-function score(text){
-  const f = featureExtract(text);
-
-  // Scores start at 0; positive favors each side
-  let human = 0, ai = 0;
-
-  // --- Human-leaning signals (news/reporting)
-  human += f.numerals * 3.5;         // money, %s, dates
-  human += f.cites * 8;              // “according to…”, “reported…”
-  human += Math.min(30, f.pnouns * 1.2);
-  human += f.quotes * 2;
-  human += (f.burstiness > 0.55 ? 8 : 0);  // varied sentence lengths
-  human += (f.contractionsRatio > 0.01 ? 3 : 0);
-
-  // --- AI-leaning signals (listicles / tidy guides)
-  ai += f.bullets * 10;
-  ai += f.steps * 12;
-  ai += f.imperativeLines * 8;
-  ai += f.headingColons * 5;
-  ai += f.transitions * 1.5;
-  ai += f.hedges * 1.2;
-  ai += (f.burstiness < 0.45 ? 12 : 0);
-  ai += (f.contractionsRatio < 0.004 ? 6 : 0);
-  ai += (f.secondPersonRatio > 0.02 ? 6 : 0);
-  ai += Math.min(12, f.repeats * 0.5);
-  ai += f.passive * 0.8;
-
-  // Small nudge: very high uniqRatio often = “crafted” → Human
-  if (f.uniqRatio > 0.5) human += 2;
-
-  // Convert to soft probabilities
-  const raw = ai - human;
-  const pAI = 1/(1+Math.exp(-raw/18)); // temperature
-  const pHuman = 1 - pAI;
-  const pMixed = 1 - Math.abs(pAI - pHuman); // peak in the middle
-
-  // classification badge
-  let badge = "Unclear";
-  if (pAI >= 0.65) badge = "Likely AI";
-  else if (pHuman >= 0.65) badge = "Likely Human";
-
-  return { f, pAI, pHuman, pMixed: Math.max(0, Math.min(1,pMixed*0.7)), badge };
-}
-
-// ---- UI ----
-const $ = sel => document.querySelector(sel);
-
-function setBar(elPct, elBar, v){
-  const pct = Math.round(v*100);
-  elPct.textContent = pct + "%";
-  elBar.style.width = pct + "%";
-}
-
-function tagsForAIReason(sent){
-  const tags = [];
-  if (/^(\d+[\.\)]|[-*•✓❌]|step\s*\d+)/i.test(sent)) tags.push("List/Bullet");
-  if (listiclePhrases.some(r=>r.test(sent))) tags.push("Rigid Guidance");
-  if (/\b(try|start|avoid|apply|breathe|use|don’t|do|stick|give|wear)\b/i.test(sent)) tags.push("Imperative");
-  if (transitionWords.has(sent.toLowerCase().split(/\W+/)[0])) tags.push("Formulaic Transition");
-  if (isPassive(sent)) tags.push("Passive Voice");
-  if (/\b(might|may|could|likely|tend|seems?)\b/i.test(sent)) tags.push("Hedging");
-  if (/:/.test(sent)) tags.push("Mechanical Punctuation");
-  return tags.length?tags:["Formulaic Flow"];
-}
-
-function tagsForHumanReason(sent){
-  const tags = [];
-  if (citationPhrases.some(r=>r.test(sent))) tags.push("Cites Source");
-  if (/\b(19|20)\d{2}\b/.test(sent) || /[$€£]|%/.test(sent)) tags.push("Specific Numbers");
-  if (properNounCount(sent)>0) tags.push("Named Entities");
-  if (/["“”]/.test(sent)) tags.push("Quotation");
-  return tags.length?tags:["Factual Clarity"];
-}
-
-function topK(arr, k){ return arr.slice(0,k); }
-
-function renderLists(text, f){
-  const aiScored = f.sents.map(s => {
-    let score = 0;
-    if (/^(\d+[\.\)]|[-*••✓❌]|step\s*\d+)/i.test(s)) score += 3;
-    if (listiclePhrases.some(r=>r.test(s))) score += 3;
-    if (imperativeStart(s.trim())) score += 2;
-    if (isPassive(s)) score += 1;
-    if (/\b(might|may|could|likely|tend|seems?)\b/i.test(s)) score += 1;
-    if (s.split(/\s+/).length < 10) score += 0.5;
-    return {s,score};
-  }).sort((a,b)=>b.score-a.score);
-
-  const humanScored = f.sents.map(s=>{
-    let score=0;
-    if (citationPhrases.some(r=>r.test(s))) score += 3;
-    if (/\b(19|20)\d{2}\b/.test(s) || /[$€£]|%/.test(s)) score += 2.5;
-    if (properNounCount(s)>0) score += 1.2;
-    if (/["“”]/.test(s)) score += 1;
-    return {s,score};
-  }).sort((a,b)=>b.score-a.score);
-
-  const aiBox = $("#aiList"); aiBox.innerHTML = "";
-  const humanBox = $("#humanList"); humanBox.innerHTML = "";
-
-  for (const {s} of topK(aiScored, 6)){
-    const li = document.createElement("li"); li.className="s-line";
-    li.innerHTML = `<div class="quote">${s}</div>
-      <div class="tags">${tagsForAIReason(s).map(t=>`<span class="tag">${t}</span>`).join("")}</div>`;
-    aiBox.appendChild(li);
   }
-  for (const {s} of topK(humanScored, 6)){
-    const li = document.createElement("li"); li.className="s-line";
-    li.innerHTML = `<div class="quote">${s}</div>
-      <div class="tags">${tagsForHumanReason(s).map(t=>`<span class="tag">${t}</span>`).join("")}</div>`;
-    humanBox.appendChild(li);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bindScan);
+  } else {
+    bindScan();
   }
-}
 
-function classify(){
-  const text = $("#input").value.trim();
-  if (!text){ alert("Paste some text first."); return; }
+  // Rebind in case the site does client-side nav
+  window.addEventListener("pageshow", bindScan);
 
-  const res = score(text);
-  setBar($("#aiPct"), $("#aiBar"), res.pAI);
-  setBar($("#humPct"), $("#humBar"), res.pHuman);
-  setBar($("#mixPct"), $("#mixBar"), res.pMixed);
-  $("#overallBadge").textContent = res.badge;
+  // -----------------------------
+  // Utilities
+  // -----------------------------
+  const STOPWORDS = new Set((
+    "a,an,the,and,or,but,if,then,else,when,while,for,to,of,in,on,at,by,with,as,that,than,so," +
+    "into,about,over,from,up,down,out,off,without,within,between,across,through,during," +
+    "is,am,are,was,were,be,been,being,do,does,did,doing,have,has,had,having," +
+    "this,that,these,those,there,here,where,who,whom,whose,which,what,why,how," +
+    "it,its,it's,i,you,we,they,he,she,them,us,me,him,her,your,our,their"
+  ).split(","));
 
-  renderLists(text, res.f);
-}
+  const TRANSITION_STARTERS = [
+    "in conclusion","conclusion","to sum up","in summary","overall","with that in mind",
+    "additionally","moreover","furthermore","however","nevertheless","nonetheless",
+    "first","second","third","finally","lastly","on the other hand","meanwhile",
+    "luckily","importantly","for example","for instance","as a result","therefore","thus"
+  ];
 
-$("#scanBtn").addEventListener("click", classify);
+  const IMPERATIVE_STARTERS = [
+    "start","begin","use","apply","avoid","stick","keep","make","try","find","focus",
+    "breathe","practice","consider","follow","do","don’t","don't","wear","set","take"
+  ];
 
-// Quick demo text on first load (optional – comment if you don’t want)
-if (!localStorage.getItem("demo-dismissed")){
-  $("#input").value = "In July 2025, Appfigures reported that 337 revenue-generating AI companion apps had produced $82 million in H1, and are on pace to exceed $120 million by year-end, according to TechCrunch.";
-}
+  const JOURNALISTIC_CUES = [
+    "according to","as of","reported","reports","reporting","said","says","told",
+    "data","survey","study","studies","per","as per","figures","appfigures","bloomberg",
+    "reuters","techcrunch","financial times","as a percentage","million","billion","percent","%"
+  ];
+
+  const KNOWN_ENTITIES = [
+    "OpenAI","Google","Anthropic","DeepMind","xAI","Microsoft","Apple","Meta",
+    "Reuters","Bloomberg","TechCrunch","Financial Times","Appfigures","Sam","Altman",
+    "Musk","Neuralink","Character.ai","Noam","Shazeer","Grok","Claude","FedRAMP"
+  ];
+
+  // try to find input text area
+  function getInputText() {
+    const el =
+      document.getElementById("input") ||
+      document.querySelector("textarea") ||
+      document.querySelector('[contenteditable="true"]');
+    return (el && (el.value ?? el.textContent) || "").trim();
+  }
+
+  function clamp01(x) {
+    return Math.max(0, Math.min(1, x));
+  }
+
+  function uniqCount(arr) {
+    return new Set(arr).size;
+  }
+
+  function tokens(s) {
+    return (s.toLowerCase().match(/[a-z0-9’']+/g) || []);
+  }
+
+  function wordsAll(text) {
+    return tokens(text);
+  }
+
+  // Keep numbered/bulleted/steps intact when splitting
+  function splitSentences(text) {
+    const lines = text.replace(/\r/g, "").split(/\n+/).map(s => s.trim()).filter(Boolean);
+    const out = [];
+    for (const line of lines) {
+      // bullets/steps: "1.", "1)", "-", "*", "•", "✓", "❌", or "step 1"
+      if (/^(\d+[\.\)]|[-*•✓❌]|step\s*\d+)/i.test(line)) {
+        out.push(line);
+        continue;
+      }
+      // Insert separators after . ? ! if followed by uppercase/open quote/paren
+      const marked = line.replace(/([.?!])\s+(?=[A-Z“"('\[])/g, "$1|");
+      out.push(...marked.split("|").map(s => s.trim()).filter(Boolean));
+    }
+    return out.filter(s => /\w/.test(s));
+  }
+
+  // -----------------------------
+  // Feature extraction
+  // -----------------------------
+  function features(text) {
+    const sents = splitSentences(text);
+    const words = wordsAll(text);
+    const sentLens = sents.map(s => tokens(s).length).filter(n => n > 0);
+    const avg = sentLens.length ? (sentLens.reduce((a,b)=>a+b,0)/sentLens.length) : 0;
+    const variance = sentLens.length ? sentLens.reduce((a,n)=>a+Math.pow(n-avg,2),0)/sentLens.length : 0;
+    const std = Math.sqrt(variance);
+    const burstiness = avg ? std/avg : 0;
+
+    // stopword ratio
+    const sw = words.filter(w => STOPWORDS.has(w)).length;
+    const stopRatio = words.length ? sw/words.length : 0;
+
+    // type-token ratio (vocab richness)
+    const ttr = words.length ? uniqCount(words)/words.length : 0;
+
+    // n-gram repetition (2–4 grams)
+    const repScores = [2,3,4].map(n => {
+      const ng = ngrams(words, n);
+      if (!ng.length) return 0;
+      const m = new Map();
+      for (const g of ng) m.set(g, (m.get(g)||0)+1);
+      const repeats = [...m.values()].filter(v=>v>1).reduce((a,b)=>a+b,0);
+      return repeats/ng.length;
+    });
+    const repetition = repScores.reduce((a,b)=>a+b,0)/(repScores.length||1);
+
+    // list share
+    const listShare = sents.length ? sents.filter(s=>/^(\d+[\.\)]|[-*••✓❌]|step\s*\d+)/i.test(s)).length/sents.length : 0;
+
+    // transitions at sentence start
+    const transShare = sents.length ? sents.filter(s => startsWithAny(s, TRANSITION_STARTERS)).length/sents.length : 0;
+
+    // imperative share
+    const impShare = sents.length ? sents.filter(s => startsWithAny(s, IMPERATIVE_STARTERS)).length/sents.length : 0;
+
+    // numbers/citations
+    const digits = (text.match(/\d/g)||[]).length;
+    const links = (text.match(/https?:\/\/|www\./gi)||[]).length;
+    const parens = (text.match(/[()]/g)||[]).length;
+    const quotes = (text.match(/["“”']/g)||[]).length;
+
+    // contractions / conversational cue
+    const contractions = (text.match(/\b\w+['’]\w+\b/g)||[]).length;
+    const secondPerson = /\byou\b/i.test(text);
+
+    // proper-noun/entity pings
+    const entities = KNOWN_ENTITIES.filter(n => new RegExp("\\b"+escapeRegex(n)+"\\b","i").test(text)).length;
+
+    return {
+      sents, words, sentLens, avg, std, burstiness, stopRatio, ttr,
+      repetition, listShare, transShare, impShare,
+      digits, links, parens, quotes, contractions, secondPerson, entities
+    };
+  }
+
+  function ngrams(arr, n) {
+    const out = [];
+    for (let i=0; i<=arr.length-n; i++) out.push(arr.slice(i,i+n).join(" "));
+    return out;
+  }
+
+  function startsWithAny(s, list) {
+    const lower = s.toLowerCase();
+    return list.some(p => lower.startsWith(p));
+  }
+
+  function escapeRegex(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+  // -----------------------------
+  // Sentence tagging (explanations)
+  // -----------------------------
+  const AI_TAGS = [
+    {name:"Rigid Guidance", test: s => startsWithAny(s, IMPERATIVE_STARTERS) || /\b(here (are|is))\b/i.test(s)},
+    {name:"Mechanical Precision", test: s => /\d/.test(s) && /[%)]|\bminutes?\b|\bhours?\b|\bweeks?\b|\byears?\b/i.test(s)},
+    {name:"Predictable Syntax", test: s => startsWithAny(s, ["first","second","third","finally","lastly","next","then"])},
+    {name:"Robotic Formality", test: s => !/\b\w+['’]\w+\b/.test(s) && !/\byou\b/i.test(s) && s.split(",").length<=1 && tokens(s).length>=8},
+    {name:"Lacks Creativity", test: s => tokens(s).filter(w=>w.length>=7).length<=2 && tokens(s).length<=18},
+    {name:"Mechanical Transitions", test: s => /\b(which|that|in order to)\b/i.test(s) && /,/.test(s)},
+    {name:"Formulaic Flow", test: s => startsWithAny(s, TRANSITION_STARTERS)}
+  ];
+
+  const HUMAN_TAGS = [
+    {name:"Journalistic Style", test: s => JOURNALISTIC_CUES.some(c => s.toLowerCase().includes(c))},
+    {name:"Factual Clarity", test: s => tokens(s).length<=28 && s.split(",").length<=2 && /\b(is|are|was|were|will|has|have|had|says|said|reported)\b/i.test(s)},
+    {name:"Technical-Broad Balance", test: s => /[,()]/.test(s) && /\b(e.g.|for example|which|that)\b/i.test(s)},
+    {name:"Common Vocabulary", test: s => uniqCount(tokens(s)) / (tokens(s).length||1) > 0.6},
+    {name:"Simple Direct Sentences", test: s => tokens(s).length<=18 && s.indexOf(",")===-1},
+    {name:"Conversational Tone", test: s => /\byou\b/i.test(s) || /\bwe\b/i.test(s) || /\b\w+['’]\w+\b/.test(s)}
+  ];
+
+  function sentenceSignals(s) {
+    const ai = AI_TAGS.filter(t => t.test(s)).map(t => t.name);
+    const human = HUMAN_TAGS.filter(t => t.test(s)).map(t => t.name);
+    return {ai, human};
+  }
+
+  // -----------------------------
+  // Scoring
+  // -----------------------------
+  function score(doc) {
+    // AI-ish signals (higher -> more AI)
+    let ai = 0;
+    ai += 1.2 * doc.listShare;           // lots of lists/steps
+    ai += 0.9 * doc.transShare;          // many "However/Additionally" openers
+    ai += 0.8 * clamp01(doc.repetition*2);
+    ai += 0.7 * clamp01((0.4 - doc.ttr) * 2);   // very low TTR = repetitive
+    ai += 0.7 * clamp01((0.35 - doc.burstiness) * 2); // very uniform sentence lengths
+    ai += 0.6 * doc.impShare;            // imperative / rigid advice vibe
+
+    // Human-ish signals
+    let human = 0;
+    human += 0.9 * clamp01(doc.burstiness);      // natural unevenness
+    human += 0.9 * clamp01(doc.ttr);             // varied vocab
+    human += 0.8 * clamp01((doc.digits>0) + (doc.entities>0) + (doc.parens>0)); // reporting flavor
+    human += 0.6 * clamp01((doc.contractions>0) + (doc.secondPerson?1:0)); // conversational
+    human += 0.5 * clamp01(doc.entities/5);      // named orgs/people
+
+    // Normalize and derive percentages
+    const base = ai + human + 1e-6;
+    let aiPct = clamp01(ai / base);
+    let humanPct = clamp01(human / base);
+    // a small mixed zone when both are middling
+    const mixedPct = clamp01(1 - Math.max(aiPct, humanPct)) * 0.6;
+
+    // re-normalize to sum ≈ 1
+    const sum = aiPct + humanPct + mixedPct + 1e-6;
+    aiPct /= sum; humanPct /= sum; const mixPct = mixedPct / sum;
+
+    return { aiPct, humanPct, mixPct };
+  }
+
+  // -----------------------------
+  // Render helpers
+  // -----------------------------
+  function setPct(kind, frac) {
+    const pctText = Math.round(frac * 100) + "%";
+    const textEl =
+      document.querySelector(`[data-pct="${kind}"]`) ||
+      document.getElementById(kind + "Pct");
+    if (textEl) textEl.textContent = pctText;
+
+    const barEl =
+      document.querySelector(`[data-bar="${kind}"]`) ||
+      document.getElementById(kind + "Bar");
+    if (barEl) barEl.style.width = pctText;
+  }
+
+  function renderLines(listIdCandidates, items) {
+    const listEl = listIdCandidates
+      .map(sel => document.querySelector(sel))
+      .find(Boolean);
+    if (!listEl) return;
+    listEl.innerHTML = "";
+
+    for (const it of items.slice(0, 8)) {
+      const li = document.createElement("div");
+      li.className = "lineItem";
+      li.innerHTML = `
+        <div class="lineText">“${escapeHTML(it.text)}”</div>
+        <div class="chips">${it.tags.map(tag => `<span class="chip">${escapeHTML(tag)}</span>`).join(" ")}</div>
+      `;
+      listEl.appendChild(li);
+    }
+  }
+
+  function escapeHTML(s){
+    return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
+  // -----------------------------
+  // Classify action
+  // -----------------------------
+  function classify() {
+    const text = getInputText();
+    if (!text) return;
+
+    const f = features(text);
+    const pct = score(f);
+
+    // Bars/percentages
+    setPct("ai", pct.aiPct);
+    setPct("mixed", pct.mixPct);
+    setPct("human", pct.humanPct);
+
+    // Sentence scanning
+    const sentObjects = f.sents.map(s => {
+      const sig = sentenceSignals(s);
+      const aiWeight = sig.ai.length + (startsWithAny(s, TRANSITION_STARTERS) ? 1 : 0) + (/\d/.test(s) && /%/.test(s) ? 0.5 : 0);
+      const humanWeight = sig.human.length + (/\b(according to|reported|says|said)\b/i.test(s) ? 1 : 0);
+      return { text: s, aiTags: sig.ai, humanTags: sig.human, aiWeight, humanWeight };
+    });
+
+    const aiTop = sentObjects
+      .filter(o => o.aiTags.length)
+      .sort((a,b) => b.aiWeight - a.aiWeight)
+      .map(o => ({ text: o.text, tags: o.aiTags }));
+
+    const humanTop = sentObjects
+      .filter(o => o.humanTags.length)
+      .sort((a,b) => b.humanWeight - a.humanWeight)
+      .map(o => ({ text: o.text, tags: o.humanTags }));
+
+    // Try multiple containers for compatibility
+    renderLines(["#aiLines", "#aiList", '[data-list="ai"]'], aiTop);
+    renderLines(["#humanLines", "#humanList", '[data-list="human"]'], humanTop);
+  }
+
+})();
