@@ -1,76 +1,65 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>GPTZero-Style Text Scanner</title>
-  <link rel="stylesheet" href="style.css">
-  <style>
-    /* safe defaults in case style.css is minimal */
-    :root{--bg:#0b0c10;--panel:#111318;--muted:#6b7280;--text:#e5e7eb;--accent:#60a5fa;--good:#22c55e;--warn:#f59e0b;--bad:#ef4444}
-    *{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#0b0c10,#0e1117);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial}
-    .wrap{max-width:1100px;margin:40px auto;padding:20px}
-    .card{background:var(--panel);border:1px solid #1f2430;border-radius:18px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
-    h1{font-size:28px;margin:0 0 8px} .sub{color:var(--muted);margin-bottom:18px}
-    textarea{width:100%;min-height:280px;border-radius:14px;border:1px solid #222631;background:#0b0e14;color:var(--text);padding:14px;resize:vertical}
-    .row{display:grid;grid-template-columns:1fr;gap:18px}
-    @media(min-width:900px){.row{grid-template-columns:1.2fr .8fr}}
-    button{cursor:pointer;border:0;border-radius:12px;padding:12px 16px;background:var(--accent);color:#081018;font-weight:700}
-    .muted{color:var(--muted)} .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
-    .badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700}
-    .b-human{background:rgba(34,197,94,.15);color:var(--good)}
-    .b-unclear{background:rgba(245,158,11,.15);color:var(--warn)}
-    .b-ai{background:rgba(239,68,68,.15);color:var(--bad)}
-    .grid{display:grid;gap:12px;grid-template-columns:repeat(3,1fr)}
-    .kpi{background:#0a0d13;border:1px solid #1c2230;border-radius:14px;padding:14px}
-    progress{width:100%;height:10px;border-radius:999px;overflow:hidden}
-    progress::-webkit-progress-bar{background:#111827}
-    progress::-webkit-progress-value{background:var(--accent)}
-    .list{background:#0a0d13;border:1px solid #1c2230;border-radius:14px;padding:14px}
-    .tag{display:inline-block;background:#121826;border:1px solid #1f2937;color:#9ca3af;padding:2px 8px;border-radius:999px;font-size:12px;margin-right:6px}
-    .small{font-size:13px}
-    .footer{margin-top:24px;color:#94a3b8}
-  </style>
+  <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
-  <div class="wrap">
-    <div class="card">
-      <h1>GPTZero-Style Text Scanner</h1>
-      <div class="sub">Paste text, click <strong>Scan</strong>. Runs locally in your browser. No uploads.</div>
+  <header class="bar">
+    <div class="logo">GPTZero-Style Text Scanner</div>
+    <div class="note">Paste text, click <strong>Scan</strong>. Runs locally in your browser. No uploads.</div>
+  </header>
 
-      <div class="row">
-        <div>
-          <textarea id="input" placeholder="Paste your article, blog, or essay here..."></textarea>
-          <div style="display:flex;gap:10px;margin-top:12px;align-items:center">
-            <button id="scan">Scan</button>
-            <span class="muted small">Heuristic replica of GPTZero vibe.</span>
+  <main class="grid">
+    <section class="left">
+      <textarea id="input" placeholder="Paste your text here…"></textarea>
+      <div class="actions">
+        <button id="scanBtn">Scan</button>
+        <span class="hint">Heuristic replica of GPTZero vibe.</span>
+      </div>
+    </section>
+
+    <section class="right">
+      <div id="overall" class="card">
+        <div class="card-title">Overall <span class="badge" id="overallBadge">—</span></div>
+        <div class="bars">
+          <div class="row">
+            <div class="label">AI-generated</div>
+            <div class="bar"><div id="aiBar" class="fill a"></div></div>
+            <div id="aiPct" class="pct">0%</div>
           </div>
-        </div>
-        <div>
-          <div class="kpi">
-            <div style="display:flex;justify-content:space-between"><div>Overall</div><div id="label" class="badge b-unclear">—</div></div>
-            <div class="grid" style="margin-top:12px">
-              <div><div class="small muted">AI-generated</div><div class="mono" id="pAI">—%</div><progress id="barAI" max="100" value="0"></progress></div>
-              <div><div class="small muted">Mixed</div><div class="mono" id="pMix">—%</div><progress id="barMix" max="100" value="0"></progress></div>
-              <div><div class="small muted">Human</div><div class="mono" id="pHum">—%</div><progress id="barHum" max="100" value="0"></progress></div>
-            </div>
+          <div class="row">
+            <div class="label">Mixed</div>
+            <div class="bar"><div id="mixBar" class="fill m"></div></div>
+            <div id="mixPct" class="pct">0%</div>
           </div>
-          <div class="list" style="margin-top:14px">
-            <div class="small muted" style="margin-bottom:8px">Advanced sentence scanning</div>
-            <ol id="sentences" class="small"></ol>
-          </div>
-          <div class="list" style="margin-top:14px">
-            <div class="small muted" style="margin-bottom:8px">Explanations</div>
-            <div id="explain" class="small"></div>
+          <div class="row">
+            <div class="label">Human</div>
+            <div class="bar"><div id="humBar" class="fill h"></div></div>
+            <div id="humPct" class="pct">0%</div>
           </div>
         </div>
       </div>
 
-      <div class="footer small">Disclaimer: heuristic approximation. Not affiliated with GPTZero.</div>
-    </div>
-  </div>
+      <div id="expl" class="card">
+        <div class="card-title">Advanced sentence scanning – top lines increasing AI probability</div>
+        <ol id="aiList" class="sentences"></ol>
+      </div>
 
-  <!-- IMPORTANT: cache-buster to ensure the new JS loads -->
-  <script src="script.js?v=2"></script>
+      <div id="explH" class="card">
+        <div class="card-title">Top lines increasing Human probability</div>
+        <ol id="humanList" class="sentences"></ol>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bar foot">
+    <small>Open-source demo. Not affiliated with GPTZero.</small>
+  </footer>
+
+  <script src="script.js?v=3"></script>
 </body>
 </html>
+
